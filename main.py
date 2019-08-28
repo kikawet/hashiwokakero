@@ -651,44 +651,6 @@ def opciones(argumentos):
     return tama
 
 
-def calcular_puentes(tablero, i, j):
-    puentes = []
-
-    if tablero[i][j] not in puente:
-        suma = valorar_nodo(tablero, i, j)
-        # valor = tablero[i][j]
-
-        valor = 0
-        # arriba
-        if i != 0 and tablero[i - 1][j] in puente:
-            lados = calcular_vertical(tablero, i - 1, j)
-            if len(lados) == 2:  # si puedo poner un puente
-                otro = lados[0]
-                libres = contar_espacios(tablero, otro[0], otro[1])
-                if libres == 1:
-                    pass
-
-        # derecha
-        if j != len(tablero[0]) - 1:
-            lados = calcular_horizontal(tablero, i, j + 1)
-            if len(lados) == 2:
-                construir_puente(tablero, lados, puente_horizontal[cantidad])
-
-        # abajo
-        if i != len(tablero) - 1:
-            lados = calcular_vertical(tablero, i + 1, j)
-            if len(lados) == 2:
-                construir_puente(tablero, lados, puente_vertical[cantidad])
-
-        # izquierda
-        if j != 0:
-            lados = calcular_horizontal(tablero, i, j - 1)
-            if len(lados) == 2:
-                construir_puente(tablero, lados, puente_horizontal[cantidad])
-
-    return puentes
-
-
 if __name__ == '__main__':
 
     seed(10)
