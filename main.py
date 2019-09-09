@@ -1,5 +1,6 @@
 import sys
 from copy import deepcopy
+from functools import reduce
 from math import floor
 from random import randrange, choice, seed
 
@@ -9,6 +10,9 @@ from pygame.math import Vector3
 '''
 Para generar
 https://github.com/pgorsira/hashiwokakero
+
+Para resolver
+https://www.cse.huji.ac.il/~ai/projects/2015/Hashiwokakero/files/report.pdf
 '''
 
 ''' 
@@ -81,22 +85,21 @@ def calcular_horizontal(tablero, i, j):
             -llegamos al tope
             -llegamos a un nodo o un puente que corta el paso (vertical)
         '''
-        while pos != 0 and (tablero[i][pos] == puente[0] or (not AUTOPLAY and tablero[i][pos] in puente_horizontal)):
+        while pos != 0 and (tablero[i][pos] == puente[0] or tablero[i][pos] in puente_horizontal):
             pos -= 1
 
         # si llegamos a un puente tenemos exito
-        if tablero[i][pos] not in puente and valorar_nodo(tablero, i, pos) != 0:
+        if tablero[i][pos] not in puente:
             # añadimos la posicion de ese nodo al extremo
             extremos.append([i, pos])
 
         # repetimos la operación hacia el otro lado
         # derecha
         pos = j
-        while pos != len(tablero[0]) - 1 and (
-                tablero[i][pos] == puente[0] or (not AUTOPLAY and tablero[i][pos] in puente_horizontal)):
+        while pos != len(tablero[0]) - 1 and (tablero[i][pos] == puente[0] or tablero[i][pos] in puente_horizontal):
             pos += 1
 
-        if tablero[i][pos] not in puente and valorar_nodo(tablero, i, pos) != 0:
+        if tablero[i][pos] not in puente:
             extremos.append([i, pos])
 
     return extremos
@@ -114,19 +117,18 @@ def calcular_vertical(tablero, i, j):
     if tablero[i][j] in puente:
         # arriba
         pos = i
-        while pos != 0 and (tablero[pos][j] == puente[0] or (not AUTOPLAY and tablero[pos][j] in puente_vertical)):
+        while pos != 0 and (tablero[pos][j] == puente[0] or tablero[pos][j] in puente_vertical):
             pos -= 1
 
-        if tablero[pos][j] not in puente and valorar_nodo(tablero, pos, j) != 0:
+        if tablero[pos][j] not in puente:
             extremos.append([pos, j])
 
         # abajo
         pos = i
-        while pos != len(tablero) - 1 and (
-                tablero[pos][j] == puente[0] or (not AUTOPLAY and tablero[pos][j] in puente_vertical)):
+        while pos != len(tablero) - 1 and (tablero[pos][j] == puente[0] or tablero[pos][j] in puente_vertical):
             pos += 1
 
-        if tablero[pos][j] not in puente and valorar_nodo(tablero, pos, j) != 0:
+        if tablero[pos][j] not in puente:
             extremos.append([pos, j])
 
     return extremos
@@ -369,6 +371,16 @@ def valorar_puente(tablero, i, j):
     return valor
 
 
+# def valorar_puente(tablero, extremos):
+#     valor = 0
+#     if extremos[0][0] == extremos[1][0]:  # si las coordenadas X son la misma es horizontal
+#         valor = valorar_puente(tablero, extremos[0][0], extremos[0][1] + 1)
+#     else:  # en el caso de vertical
+#         valor = valorar_puente(tablero, extremos[0][0] + 1, extremos[0][1])
+#
+#     return valor
+
+
 def valorar_nodo(tablero, i, j):
     '''
     Valor del nodo - suma del valor de los puentes con los que conecta
@@ -413,13 +425,11 @@ def contar_espacios(tablero, i, j):
 
     if tablero[i][j] not in puente:  # si es un nodo
         # arriba
-        if i != 0 and tablero[i - 1][j] == puente[0] and len(
-                calcular_vertical(tablero, i - 1, j)) == 2:  # buscamos hacia arriba si se puede conectar un puente
+        if i != 0 and tablero[i - 1][j] == puente[0] and len(calcular_vertical(tablero, i - 1, j)) == 2:  # buscamos hacia arriba si se puede conectar un puente
             espacios += 1
 
         # derecha
-        if j != len(tablero[0]) - 1 and tablero[i][j + 1] == puente[0] and len(
-                calcular_horizontal(tablero, i, j + 1)) == 2:
+        if j != len(tablero[0]) - 1 and tablero[i][j + 1] == puente[0] and len(calcular_horizontal(tablero, i, j + 1)) == 2:
             espacios += 1
 
         # abajo
@@ -651,6 +661,200 @@ def opciones(argumentos):
     return tama
 
 
+def puentes_conectados(arcos, nodo):
+    str_nodo = str(nodo)
+    puentes = [eval(arco) for arco in arcos if str_nodo in arco]
+
+    return puentes
+
+
+def restricciones_puentes(arcos, a, b, tablero):
+    dominio = arcos[str([a, b])]
+
+    if len(dominio) == 1:
+        return False
+
+    if a[0] == 5 and a[1] == 1 and b[0] == 7 and b[1] == 1:
+        print('!')
+    #     pass
+
+    valor_a = tablero[a[0]][a[1]]
+    valor_b = tablero[b[0]][b[1]]
+
+    sum_a = valorar_nodo(tablero, a[0], a[1])
+    sum_b = valorar_nodo(tablero, b[0], b[1])
+
+    libres_a = contar_espacios(tablero, a[0], a[1])
+    libres_b = contar_espacios(tablero, b[0], b[1])
+
+    # D(a,b) <= min{|a|,|b|}   |  regla 2
+    min_sum_ab = min(sum_a, sum_b)
+    dominio = [x for x in dominio if x <= min_sum_ab]
+
+    # a == b => D(a,b) !E {a}  |  regla 3
+    if valor_a == valor_b:
+        try:
+            dominio.remove(a)
+        except:
+            pass
+
+    # |a| = 0 or |b| = 0 => D(a,b) = {0} | regla 4
+    if sum_a == 0 or sum_b == 0:
+        dominio = [0]
+
+    # puente(a,b) != 0 => puente(a,b) = 0 aka si ya hay un puente no se puede poner | regla 5
+    hay_puente = False
+    if a[0] - b[0] == 0:  # puente horizontal
+        # hay_puente = len(calcular_horizontal(tablero, a[0], a[1] + 1)) != 2
+        p_ver = []
+
+        for key, val in arcos.items():
+            arco = eval(key)
+            if arco[0][1] - arco[1][1] == 0 and arco[0][1] > a[1] and arco[0][1] < b[1]:
+                p_ver.append(val)
+
+        i = 0
+        while not hay_puente and i < len(p_ver):
+            hay_puente = 0 not in p_ver[i]
+            i += 1
+
+    else:  # vertical
+        p_hor = []
+
+        for key, val in arcos.items():
+            arco = eval(key)
+            if arco[0][0] - arco[1][0] == 0 and arco[0][0] > a[0] and arco[0][0] < b[0]:
+                p_hor.append(val)
+
+        i = 0
+        while not hay_puente and i < len(p_hor):
+            hay_puente = 0 not in p_hor[i]
+            i += 1
+
+    if hay_puente:
+        dominio = [0]
+
+    # suma minimos + puente < valor / a,b |  regla 6
+    # para nodo a y b calcular valor minimo y maximo del resto de puentes
+
+    puentes_a = puentes_conectados(arcos, a)
+    puentes_b = puentes_conectados(arcos, b)
+
+    puentes_a = [p for p in puentes_a if b not in p]
+    puentes_b = [p for p in puentes_b if a not in p]
+
+    # if a == [1,9] and b == [4,9]:
+    #     print(puentes_a, '-----', arcos[str(puentes_a[0])])
+
+    if len(puentes_a) != 0:
+        min_a = reduce(lambda sum, elem: sum + elem, map(lambda x: min(arcos[str(x)]), puentes_a))
+        max_a = reduce(lambda sum, elem: sum + elem, map(lambda x: max(arcos[str(x)]), puentes_a))
+    # else:
+    #     min_a =
+    #     max_a =
+
+    if len(puentes_b) != 0:
+        min_b = reduce(lambda sum, elem: sum + elem, map(lambda x: min(arcos[str(x)]), puentes_b))
+        max_b = reduce(lambda sum, elem: sum + elem, map(lambda x: max(arcos[str(x)]), puentes_b))
+    # else:
+    #     min_b =
+    #     max_b =
+
+    dominio = [valor for valor in dominio if (len(puentes_a) != 0 and valor + max_a >= valor_a) or (len(puentes_b) != 0 and valor + max_b >= valor_b)]
+    dominio = [valor for valor in dominio if (len(puentes_a) != 0 and valor + min_a <= valor_a) or (len(puentes_b) != 0 and valor + min_b <= valor_b)]
+
+    # dominio = list(set(d1).union(d2))
+
+    # dominio = [valor for valor in dominio if ]
+    # dominio = [valor for valor in dominio if ]
+
+    if dominio == []:
+        dominio = [0]
+    #
+    # # regla 1
+    if floor(sum_a / 2) == libres_a:
+        if sum_a % 2 == 0:
+            dominio = [2]
+    #     # else:
+    #     #     dominio = [1]
+    #
+    if floor(sum_b / 2) == libres_b:
+        if sum_b % 2 == 0:
+            dominio = [2]
+        # else:
+        #     dominio = [1]
+
+    if libres_a == 1 and sum_a == 1:  # and 1 in dominio:
+        dominio = [1]
+
+    if libres_b == 1 and sum_b == 1:  # and 1 in dominio:
+        dominio = [1]
+
+    # al acabar se actualiza
+    borrado = arcos[str([a, b])] != dominio
+    arcos[str([a, b])] = dominio
+
+    return borrado
+
+
+def resolver(tablero):
+    dominios = {}
+    arcos = []
+    DOMINIO = [0, 1, 2]
+
+    for i in range(len(tablero)):
+        for j in range(len(tablero[0])):
+
+            # derecha
+            if j != len(tablero[0]) - 1:
+                extremos = calcular_horizontal(tablero, i, j + 1)
+                if len(extremos) == 2:
+                    dominios[str(extremos)] = DOMINIO
+                    arcos.append(extremos)
+
+            # abajo
+            if i != len(tablero) - 1:
+                extremos = calcular_vertical(tablero, i + 1, j)
+                if len(extremos) == 2:
+                    dominios[str(extremos)] = DOMINIO
+                    arcos.append(extremos)
+
+    for loop in range(40):
+        PSR = deepcopy(arcos)
+
+        if loop == 20:
+            print('??')
+            print('ttt')
+        #
+        # for val in arcos:
+        #     if len(dominios[str(val)]) > 1:
+        #         PSR.append(val)
+
+        while len(PSR) != 0:
+            p1, p2 = PSR.pop(0)
+            # arco = [p1, p2]
+            # dom = deepcopy(dominios[str(arco)])
+
+            if restricciones_puentes(dominios, p1, p2, tablero):
+                puentes_p1 = puentes_conectados(dominios, p1)
+
+                puentes_p1 = [p for p in puentes_p1 if p2 not in p]
+                PSR = PSR + puentes_p1  # puentes_conectados(PSR, p1)
+
+            else:
+                arco = [p1, p2]
+                dom = deepcopy(dominios[str(arco)])
+                if len(dom) == 1:
+                    dom = dom[0]
+                    if dom != 0:
+                        dom -= 1
+                        if arco[0][0] - arco[1][0] == 0:
+                            # puente horizontal
+                            construir_puente(tablero, arco, puente_horizontal[dom])
+                        else:
+                            construir_puente(tablero, arco, puente_vertical[dom])
+
+
 if __name__ == '__main__':
 
     seed(10)
@@ -678,69 +882,118 @@ if __name__ == '__main__':
     # relog para mantener los fps
     clock = pg.time.Clock()
 
-    # vector con los nodos sin todos los puentes
-    pendientes = []
-    completados = []
-    visitados = []
-    # si no hay jugador se necesita ver donde estar los nodos
-    if AUTOPLAY:
-        # se recorre toda la matriz para añadir esos nodos al vector
-        for fila in range(len(tablero)):
-            for col in range(len(tablero[0])):
-                if tablero[fila][col] not in puente:
-                    pendientes.append([fila, col])
+    resolver(tablero)
+    # total = 0
+    #     for arco in arcos:
+    #         dom = dominios[str(arco)]
+    #         if len(dom) == 1:
+    #             dom = dom[0]
+    #             if dom != 0:
+    #                 dom -= 1
+    #                 if arco[0][0] - arco[1][0] == 0:
+    #                     # puente horizontal
+    #                     construir_puente(tablero, arco, puente_horizontal[dom])
+    #                 else:
+    #                     construir_puente(tablero, arco, puente_vertical[dom])
 
-        if len(pendientes) != 0:  # mientras exitan nodos sin puentes
-            actual = pendientes.pop(0)  # extraemos el primer valor
-    else:  # en caso de tener un jugador no se marca ningun nodo al inicio
-        actual = [-1, -1]  # valor fuera del rango
+    # print(len(dominios), '---', total)
+    # p = puentes_conectados(dominios, arcos[0][0])
+    # p = [p1 for p1 in p if arcos[0][1] not in p1]
+    # print(p)
+    # # vector con los nodos sin todos los puentes
+    # pendientes = []
+    # completados = []
+    # visitados = []
+    # # si no hay jugador se necesita ver donde estar los nodos
+    # if AUTOPLAY:
+    #     # se recorre toda la matriz para añadir esos nodos al vector
+    #     for fila in range(len(tablero)):
+    #         for col in range(len(tablero[0])):
+    #             if tablero[fila][col] not in puente:
+    #                 pendientes.append([fila, col])
+    #
+    #     if len(pendientes) != 0:  # mientras exitan nodos sin puentes
+    #         actual = pendientes.pop(0)  # extraemos el primer valor
+    # else:  # en caso de tener un jugador no se marca ningun nodo al inicio
+    #     actual = [-1, -1]  # valor fuera del rango
+    #
+    # bucle = False
 
     try:
         while running:  # entramos en bucle mientras no se cierre el programa
             clock.tick(60)  # fps de la ventana
 
-            if AUTOPLAY:  # se calculan datos para intentar resolver
-                suma_actual = valorar_nodo(tablero, actual[0], actual[1])  # valor del nodo - valor de todos los puentes
-                libres_actual = contar_espacios(tablero, actual[0], actual[1])  # caminos libres sin puente
-
-                if suma_actual != 0:  # si el nodo no está completo
-                    if libres_actual == 0:
-                        # destruir imperios
-                        print('?')
-                        continue
-
-                    if libres_actual == 1 or (
-                            suma_actual % 2 == 0 and suma_actual / libres_actual == 2):  # si se puede resolver
-
-                        # ponemos alias a las variables por comodidad
-                        i = actual[0]
-                        j = actual[1]
-
-                        cantidad = floor((suma_actual / libres_actual) - 1)  # cantidad de puentes en cada dirección
-
-                        # arriba
-                        if i != 0:
-                            lados = calcular_vertical(tablero, i - 1, j)
-                            if len(lados) == 2:  # si puedo poner un puente
-                                construir_puente(tablero, lados, puente_vertical[cantidad])
-
-                        # derecha
-                        if j != len(tablero[0]) - 1:
-                            lados = calcular_horizontal(tablero, i, j + 1)
-                            if len(lados) == 2:
-                                construir_puente(tablero, lados, puente_horizontal[cantidad])
-
-                        # abajo
-                        if i != len(tablero) - 1:
-                            lados = calcular_vertical(tablero, i + 1, j)
-                            if len(lados) == 2:
-                                construir_puente(tablero, lados, puente_vertical[cantidad])
-
-                        # izquierda
-                        if j != 0:
-                            lados = calcular_horizontal(tablero, i, j - 1)
-                            if len(lados) == 2:
-                                construir_puente(tablero, lados, puente_horizontal[cantidad])
+            # if AUTOPLAY:  # se calculan datos para intentar resolver
+            #     suma_actual = valorar_nodo(tablero, actual[0], actual[1])  # valor del nodo - valor de todos los puentes
+            #     libres_actual = contar_espacios(tablero, actual[0], actual[1])  # caminos libres sin puente
+            #
+            #     if suma_actual != 0:  # si el nodo no está completo
+            #         if libres_actual == 0:
+            #             # destruir imperios
+            #             print('?')
+            #             continue
+            #
+            #         # if tablero[actual[0]][actual[1]] == 2:
+            #         #     print('!')
+            #         #     pass
+            #
+            #         valor = tablero[actual[0]][actual[1]]
+            #
+            #         if libres_actual == 1 or (suma_actual % 2 == 0 and suma_actual / libres_actual == 2) or (bucle and valor - libres_actual == 0):  # si se puede resolver
+            #
+            #             # ponemos alias a las variables por comodidad
+            #             i = actual[0]
+            #             j = actual[1]
+            #
+            #             cantidad = floor((suma_actual / libres_actual) - 1)  # cantidad de puentes en cada dirección
+            #
+            #             # arriba
+            #             if i != 0:
+            #                 lados = calcular_vertical(tablero, i - 1, j)
+            #                 if len(lados) == 2:  # si puedo poner un puente
+            #                     tipo = puente_vertical[cantidad]
+            #                     if bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[0][0], lados[0][1]) != 1):
+            #                         tipo = puente_vertical[0]
+            #                         # cantidad += 1
+            #                     elif bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[0][0], lados[0][1]) == 1):
+            #                         tipo = puente[0]
+            #                     construir_puente(tablero, lados, tipo)
+            #
+            #             # derecha
+            #             if j != len(tablero[0]) - 1:
+            #                 lados = calcular_horizontal(tablero, i, j + 1)
+            #                 if len(lados) == 2:
+            #                     tipo = puente_horizontal[cantidad]
+            #                     if bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[1][0], lados[1][1]) != 1):
+            #                         tipo = puente_horizontal[0]
+            #                         # cantidad += 1
+            #                     elif bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[1][0], lados[1][1]) == 1):
+            #                         tipo = puente[0]
+            #                     construir_puente(tablero, lados, tipo)
+            #
+            #             # abajo
+            #             if i != len(tablero) - 1:
+            #                 lados = calcular_vertical(tablero, i + 1, j)
+            #                 if len(lados) == 2:
+            #                     tipo = puente_vertical[cantidad]
+            #                     if bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[1][0], lados[1][1]) != 1):
+            #                         tipo = puente_vertical[0]
+            #                         # cantidad += 1
+            #                     elif bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[1][0], lados[1][1]) == 1):
+            #                         tipo = puente[0]
+            #                     construir_puente(tablero, lados, tipo)
+            #
+            #             # izquierda
+            #             if j != 0:
+            #                 lados = calcular_horizontal(tablero, i, j - 1)
+            #                 if len(lados) == 2:
+            #                     tipo = puente_horizontal[cantidad]
+            #                     if bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[0][0], lados[0][1]) != 1):
+            #                         tipo = puente_horizontal[0]
+            #                         # cantidad += 1
+            #                     elif bucle and libres_actual != 1 and (suma_actual == 1 and valorar_nodo(tablero, lados[0][0], lados[0][1]) == 1):
+            #                         tipo = puente[0]
+            #                     construir_puente(tablero, lados, tipo)
 
             # se dibuja el fondo
             pantalla.fill(FONDO)
@@ -748,7 +1001,7 @@ if __name__ == '__main__':
             # se obtienen las coordenadas del raton
             raton = pg.math.Vector2(pg.mouse.get_pos())  # se crea un vector con esas coordenadas
 
-            if not AUTOPLAY and PREVISUALIZAR:
+            if PREVISUALIZAR:
                 tablero_anterior = deepcopy(tablero)  # se hace una copia del tablero
                 construir(raton, tablero)  # se pone un puente donde esta el raton
 
@@ -771,21 +1024,20 @@ if __name__ == '__main__':
                         # color del borde del nodo
                         color = NUMEROS
 
-                        # cambiamos el color del nodo dependiendo de su estado
-                        if (actual[0] == fila and actual[
-                            1] == col):  # or raton.distance_to((x, y)) < TAMA_TEXTO:  # el actual
-                            color = MARCADO
-                        elif [fila, col] in completados:  # no volverán a visitarse
-                            color = COMPLETADO
-                        elif [fila, col] in visitados:  # se visitarán en la proxima vuelta
-                            color = VISITADO
+                        # # cambiamos el color del nodo dependiendo de su estado
+                        # if (actual[0] == fila and actual[
+                        #     1] == col):  # or raton.distance_to((x, y)) < TAMA_TEXTO:  # el actual
+                        #     color = MARCADO
+                        # elif [fila, col] in completados:  # no volverán a visitarse
+                        #     color = COMPLETADO
+                        # elif [fila, col] in visitados:  # se visitarán en la proxima vuelta
+                        #     color = VISITADO
 
                         # se dibuja el borde del circulo
                         pg.draw.circle(pantalla, color, [x, y], TAMA_TEXTO, 2)
 
                         # se pone el valor de ese nodo
-                        dibujar_texto(pantalla, str(tablero[fila][col]), (x - TAMA_TEXTO / 4, y - TAMA_TEXTO / 1.5),
-                                      NUMEROS)
+                        dibujar_texto(pantalla, str(tablero[fila][col]), (x - TAMA_TEXTO / 4, y - TAMA_TEXTO / 1.5), NUMEROS)
 
             # actualiza la pantalla para dibujar todos los elementos
             pg.display.flip()
@@ -802,33 +1054,54 @@ if __name__ == '__main__':
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_F5:
                         tablero = generar(tama[0], tama[1])
+                        resolver(tablero)
+
+                        # # vector con los nodos sin todos los puentes
+                        # pendientes = []
+                        # completados = []
+                        # visitados = []
+                        # # si no hay jugador se necesita ver donde estar los nodos
+                        # if AUTOPLAY:
+                        #     # se recorre toda la matriz para añadir esos nodos al vector
+                        #     for fila in range(len(tablero)):
+                        #         for col in range(len(tablero[0])):
+                        #             if tablero[fila][col] not in puente:
+                        #                 pendientes.append([fila, col])
+                        #
+                        #     if len(pendientes) != 0:  # mientras exitan nodos sin puentes
+                        #         actual = pendientes.pop(0)  # extraemos el primer valor
+                        # else:  # en caso de tener un jugador no se marca ningun nodo al inicio
+                        #     actual = [-1, -1]  # valor fuera del rango
+                # if event.type == pg.MOUSEBUTTONDOWN and event.button == 3:
+                #     bucle = not bucle
+                #     print('bucle = ', bucle)
 
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:  # si se pulsa un boton y es el boton izquierdo
 
-                    # se actualiza el estado del nodo solo si debe jugar solo
-                    if AUTOPLAY:
-                        # si no se han añadido los puentes
-                        if suma_actual != 0 and not (
-                                suma_actual % 2 == 0 and suma_actual / libres_actual == 2):  # suma_actual != 0 and suma_actual % libres_actual != 0:
-                            pendientes.append(actual)  # se añade al final para visitarlo otra vez
-                            visitados.append(actual)  # se añade para cambiar el color mientras cambia el actual
-                        else:  # tiene los puentes
-                            completados.append(actual)  # se añade para cambiar el color del borde
-                            if actual in visitados:  # si esta en el vector
-                                visitados.remove(actual)  # se elimina al estar completado
+                    # # se actualiza el estado del nodo solo si debe jugar solo
+                    # if AUTOPLAY:
+                    #     # si no se han añadido los puentes
+                    #     if suma_actual != 0 and not (
+                    #             suma_actual % 2 == 0 and suma_actual / libres_actual == 2):  # suma_actual != 0 and suma_actual % libres_actual != 0:
+                    #         pendientes.append(actual)  # se añade al final para visitarlo otra vez
+                    #         visitados.append(actual)  # se añade para cambiar el color mientras cambia el actual
+                    #     else:  # tiene los puentes
+                    #         completados.append(actual)  # se añade para cambiar el color del borde
+                    #         if actual in visitados:  # si esta en el vector
+                    #             visitados.remove(actual)  # se elimina al estar completado
+                    #
+                    #     if len(pendientes) != 0:  # mientras exitan nodos sin puentes
+                    #         actual = pendientes.pop(0)  # extraemos el primer valor
+                    #     else:  # al acabar
+                    #         actual = [-1, -1]  # se asigna fuera del rango para desmarcar el ultimo
+                    # else:  # si hay un jugador se hacen las acciones normales
+                    # no se borra y se dibuja el puente
+                    borrar = False
+                    if not PREVISUALIZAR:
+                        # si no se previsualiza se construye el puente directamente
+                        construir(raton, tablero)
 
-                        if len(pendientes) != 0:  # mientras exitan nodos sin puentes
-                            actual = pendientes.pop(0)  # extraemos el primer valor
-                        else:  # al acabar
-                            actual = [-1, -1]  # se asigna fuera del rango para desmarcar el ultimo
-                    else:  # si hay un jugador se hacen las acciones normales
-                        # no se borra y se dibuja el puente
-                        borrar = False
-                        if not PREVISUALIZAR:
-                            # si no se previsualiza se construye el puente directamente
-                            construir(raton, tablero)
-
-            if not AUTOPLAY and PREVISUALIZAR and borrar:  # en caso de borrarse se desacen los cambios
+            if PREVISUALIZAR and borrar:  # en caso de borrarse se desacen los cambios
                 tablero = tablero_anterior  # se deshacen los cambios haechos
 
         pg.quit()
